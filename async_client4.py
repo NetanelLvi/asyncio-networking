@@ -1,3 +1,11 @@
+"""
+Robust client:
+- keep working regardless to servers status
+- handle with unavailable servers or disconnections during running 
+- apply reconnection mechanism to servers that had been crashed 
+    until connection reestablish
+"""
+
 import asyncio
 import struct
 import servers_addr
@@ -12,6 +20,10 @@ disconnected_servers = []
 
 
 async def recv_and_parse_message(reader: asyncio.StreamReader) -> str:
+    """
+    receive message applying header unpacking and and
+    then take care of the message itself 
+    """
     # Receive the header (20 bytes)
     header = await reader.readexactly(20)
     # Extract message length from the header
@@ -71,19 +83,22 @@ async def connect_to_server(host: str, port: int, server_name: str) -> Tuple[asy
 
 async def reconnect():
     """
-    Reconnects to all servers in the disconnected list.
+    Reconnects to all servers in the disconnected list 
+    use disconnected_servers.copy() 
+    avoiding conflicts and errors of reading and editing an iterable at the same time.
     """
     while True:
+        await asyncio.sleep(reconnect_delay)  # Wait before retrying
         for server_info in disconnected_servers.copy():
             host, port, server_name = server_info
             reader, writer, name = await connect_to_server(host, port, server_name)
             if reader and writer:
                 asyncio.create_task(handle_connection(reader, writer, server_info))
-        await asyncio.sleep(reconnect_delay)  # Wait before retrying
 
 
 async def main():
     """
+    this is the main event:
     Connects to multiple servers and handles their connections concurrently.
     """
     # List of server addresses
